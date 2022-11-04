@@ -1,7 +1,7 @@
 import sqlite3
 
 
-class Seacher:
+class Searcher:
 
     def dbcommit(self):
         """ Зафиксировать изменения в БД """
@@ -25,7 +25,7 @@ class Seacher:
         :return: список wordlist.rowid искомых слов
         """
 
-        # Привести поисковый запрос к верхнему регистру
+        # Привести поисковый запрос к нижнему регистру
         queryString = queryString.lower()
 
         # Разделить на отдельные искомые слова
@@ -180,16 +180,17 @@ class Seacher:
             if dist < mindistance[row[0]]: mindistance[row[0]] = dist
         return self.normalizeScores(mindistance, smallIsBetter=1)
 
+
 # ------------------------------------------
 def main():
     """ основная функция main() """
-    mySeacher = Seacher("DB_Lab1.db")
+    mySeacher = Searcher("DB_Lab1.db")
     rows, wordsidList = mySeacher.getMatchRows('частичная мобилизация')
     print (rows)
     print(wordsidList)
     diction = mySeacher.distancescore(rows)
     print(diction)
-
+    print("hello")
 
 # ------------------------------------------
 main()
