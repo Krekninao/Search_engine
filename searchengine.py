@@ -106,12 +106,13 @@ class Searcher:
 
                     # Добавить в sql INNER JOIN
                     sqlpart_Join.append("""INNER JOIN wordlocation w{}  -- назначим псевдоним w{} для второй из соединяемых таблиц
-                                on w0.fk_URLid=w{}.fk_URLid -- условие объединения""".format(wordIndex, wordIndex, wordIndex))
+                                on w0.fk_URLid=w{}.fk_URLid -- условие объединения""".format(wordIndex, wordIndex,
+                                                                                             wordIndex))
                     # Добавить в sql ограничивающее условие
                     sqlpart_Condition.append(
                         """  AND w{}.fk_wordid={} -- совпадение w{}... с cоответсвующим словом """.format(wordIndex,
-                                                                                                       wordID,
-                                                                                                       wordIndex))
+                                                                                                          wordID,
+                                                                                                          wordIndex))
                     pass
             pass
 
@@ -175,10 +176,14 @@ class Searcher:
 
         # Инициализировать словарь большими значениями
         mindistance = dict([(row[0], 1000000) for row in rows])
-        for row in rows:
-            dist = sum([abs(row[i] - row[i - 1]) for i in range(2, len(row))])
-            if dist < mindistance[row[0]]: mindistance[row[0]] = dist
-        return self.normalizeScores(mindistance, smallIsBetter=1)
+        for row in rows:  # Цикл обхода каждой строки-комбинации искомых слов
+            sum = 0
+            for i in range(2, len(row)):  # пробегаемся по комбинации
+                dist = abs(row[i] - row[i - 1])  # считаем расстояние между очередными двумя словами
+                sum += dist  # накапливаем эти расстояния
+            if sum < mindistance[row[0]]: mindistance[row[0]] = sum  # переприсваиваем накопленную сумму
+
+        return self.normalizeScores(mindistance, smallIsBetter=1) # возвращаем нормализованный словарь
 
 
 # ------------------------------------------
@@ -186,11 +191,9 @@ def main():
     """ основная функция main() """
     mySeacher = Searcher("DB_Lab1.db")
     rows, wordsidList = mySeacher.getMatchRows('частичная мобилизация')
-    print (rows)
+    print(rows)
     print(wordsidList)
     diction = mySeacher.distancescore(rows)
     print(diction)
-    print("hello")
-
 # ------------------------------------------
 main()
