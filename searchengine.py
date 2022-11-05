@@ -170,7 +170,52 @@ class Searcher:
 
         return resultDict
 
-    def distancescore(self, rows):
+    # Ранжирование. Содержимомое. 1. Частота слов.
+    def frequencyScore(self, rowsLoc):
+        """
+        Расчет количества комбинаций искомых слов
+        Пример встречается на странице  q1 - 10 раз,  q2 - 3 раза, Общий ранг страницы = 10*3 = 30 "комбинаций"
+        :param rowsLoc: Список вхождений: urlId, loc_q1, loc_q2, .. слов из поискового запроса "q1 q2 ..."
+        (на основе результата getmatchrows ())
+        :return: словарь {UrlId1: общее кол-во комбинаций, UrlId2: общее кол-во комбинаций, }
+        """
+
+        # Создать countsDict - словарь с количеством упоминаний/комбинаций искомых слов -
+        # {id URL страницы где встретилась комбинация искомых слов: общее количество комбинаций на странице }
+        # поместить в словарь все ключи urlid с начальным значением счетчика "0"
+        countsDict = dict([(row[0], 0) for row in rowsLoc])
+
+        # Увеличивает счетчик для URLid +1 за каждую встреченную комбинацию искомых слов
+        for row in rowsLoc:
+            countsDict[row[0]] += 1
+
+        # передать словарь счетчиков в функцию нормализации, режим "чем больше, тем лучше")
+        return self.normalizeScores(countsDict, smallIsBetter=0)
+
+    # Ранжирование. Содержимое. 2. Расположение в документе.
+    def locationScore(self, rowsLoc):
+        """
+        Расчет минимального расстояния от начала страницы у комбинации искомых слов
+        :param rows: Список вхождений: urlId, loc_q1, loc_q2, .. слов из поискового запроса "q1 q2 ..." (на основе результата getmatchrows ())
+        :return: словарь {UrlId1: мин. расстояния от начала для комбинации, UrlId2: мин. расстояния от начала для комбинации, }
+        """
+
+        # Создать locationsDict - словарь с расположением от начала страницы упоминаний/комбинаций искомых слов
+        # поместить в словарь все ключи urlid с начальным значением сумм расстояний от начала страницы "1000000"
+        locationsDict = dict([(row[0], 1000000) for row in rowsLoc])
+        # Для каждой строки-комбинации искомых слов
+        for row in rowsLoc:
+        # получить все позиции искомых слов ( в строке-комбинации (urlId, loc_q1, loc_q2, .. ) взять все кроме нулевого)
+        # вычислить Сумму дистанций каждого слова от начала страницы
+            curSum = sum(row) - row[0]
+        # Получить urlid страницы
+        # Проверка, является ли найденная комбинация слов ближе к началу, чем предыдущие
+            if curSum < locationsDict[row[0]]: locationsDict[row[0]] = curSum
+        # передать словарь дистанций в функцию нормализации, режим "чем больше, тем лучше")
+        return self.normalizeScores(locationsDict, smallIsBetter=1)
+
+    # Ранжирование. Содержимое. 3. Расстояние между словами.
+    def distanceScore(self, rows):
         # Если есть только одно слово, любой документ выигрывает!
         if len(rows[0]) <= 2: return dict([(row[0], 1.0) for row in rows])
 
@@ -182,7 +227,6 @@ class Searcher:
                 dist = abs(row[i] - row[i - 1])  # считаем расстояние между очередными двумя словами
                 sum += dist  # накапливаем эти расстояния
             if sum < mindistance[row[0]]: mindistance[row[0]] = sum  # переприсваиваем накопленную сумму
-
         return self.normalizeScores(mindistance, smallIsBetter=1) # возвращаем нормализованный словарь
 
 
@@ -193,7 +237,7 @@ def main():
     rows, wordsidList = mySeacher.getMatchRows('частичная мобилизация')
     print(rows)
     print(wordsidList)
-    diction = mySeacher.distancescore(rows)
+    diction = mySeacher.locationScore(rows)
     print(diction)
 # ------------------------------------------
 main()
