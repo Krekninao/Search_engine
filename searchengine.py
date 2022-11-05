@@ -271,6 +271,83 @@ class Searcher:
         for (score, urlid) in rankedScoresList[0:10]:
             print("{:.2f} {:>5}  {}".format(score, urlid, self.geturlname(urlid)))
 
+    def calculatePageRank(self, iterations=5):
+        # Подготовка БД ------------------------------------------
+        # стираем текущее содержимое таблицы PageRank
+        self.con.execute('DROP TABLE IF EXISTS pagerank')
+        self.con.execute("""CREATE TABLE  IF NOT EXISTS  pagerank(
+                            rowid INTEGER PRIMARY KEY AUTOINCREMENT,
+                            urlid INTEGER,
+                            score REAL
+                        );""")
+
+        # Для некоторых столбцов в таблицах БД укажем команду создания объекта "INDEX" для ускорения поиска в БД
+        self.con.execute("DROP INDEX   IF EXISTS wordidx;")
+        self.con.execute("DROP INDEX   IF EXISTS urlidx;")
+        self.con.execute("DROP INDEX   IF EXISTS wordurlidx;")
+        self.con.execute("DROP INDEX   IF EXISTS urltoidx;")
+        self.con.execute("DROP INDEX   IF EXISTS urlfromidx;")
+        self.con.execute('CREATE INDEX IF NOT EXISTS wordidx       ON wordlist(word)')
+        self.con.execute('CREATE INDEX IF NOT EXISTS urlidx        ON urllist(url)')
+        self.con.execute('CREATE INDEX IF NOT EXISTS wordurlidx    ON wordlocation(fk_wordid)')
+        self.con.execute('CREATE INDEX IF NOT EXISTS urltoidx      ON linkbeetwenurl(fk_ToURL_id)')
+        self.con.execute('CREATE INDEX IF NOT EXISTS urlfromidx    ON linkbeetwenurl(fk_fromURL_id)')
+        self.con.execute("DROP INDEX   IF EXISTS rankurlididx;")
+        self.con.execute('CREATE INDEX IF NOT EXISTS rankurlididx  ON pagerank(urlid)')
+        self.con.execute("REINDEX wordidx;")
+        self.con.execute("REINDEX urlidx;")
+        self.con.execute("REINDEX wordurlidx;")
+        self.con.execute("REINDEX urltoidx;")
+        self.con.execute("REINDEX urlfromidx;")
+        self.con.execute("REINDEX rankurlididx;")
+
+        # в начальный момент ранг для каждого URL равен 1
+        self.con.execute('INSERT INTO pagerank (urlid, score) SELECT rowid, 1.0 FROM urllist')
+        self.dbcommit()
+
+        # Цикл Вычисление PageRank в несколько итераций
+        for i in range(iterations):
+            print("Итерация %d" % (i))
+
+            # Цикл для обхода каждого  urlid адреса в urllist БД
+            urllist = self.con.execute("SELECT rowid FROM urllist")
+            for (urlid, ) in urllist:
+
+                # назначить коэфф pr = 0.15
+                pr = 0.15
+                # SELECT DISTINCT fromid FROM linkbeetwenurl  -- DISTINCT выбрать уникальные значения fromid
+                url = self.con.execute(f"SELECT URL from URLlist where rowid = {urlid}").fetchone()
+                print(f'----------current url = {urlid}----------')
+                sqlRequest = f'SELECT DISTINCT fk_fromURL_id FROM linkbeetwenURL where fk_ToURL_id = "{url[0]}"'
+                listLinkedURL = self.con.execute(sqlRequest)
+                # В цикле обходим все страницы, ссылающиеся на данную urlid
+                for (linker, ) in listLinkedURL:
+                    print(linker)
+                    # Находим ранг ссылающейся страницы linkingpr. выполнить SQL-зарпрос
+                    curURLid = self.con.execute(f'SELECT rowid from URLlist where URL = "{linker}"').fetchone()[0]
+                    linkingpr = self.con.execute(
+                        'select score from pagerank where urlid=%d' % curURLid).fetchone()[0]
+                    # Находим общее число ссылок на ссылающейся странице linkingcount. выполнить SQL-зарпрос
+                    linkingcount = self.con.execute(
+                        'select count(*) from linkbeetwenURL where fk_fromURL_id="%s"' % linker).fetchone()[0]
+                    # Прибавить к pr вычесленный результат для текущего узла
+                    pr += 0.85 * (linkingpr/linkingcount)
+                # выполнить SQL-зарпрос для обновления значения  score в таблице pagerank БД
+                self.con.execute('UPDATE pagerank SET score=%f WHERE urlid=%d' % (pr, urlid))
+
+            self.dbcommit()
+
+    # Вывод результата pagerank
+    def pagerankScore(self, rows):
+        # получить значения pagerank
+        self.calculatePageRank()
+        # нормализовать отностительно максимума
+        prDict = {}
+        scores = self.con.execute("SELECT urlid, score from pagerank")
+        for (id, score) in scores:
+            prDict[id] = score
+        return self.normalizeScores(prDict, smallIsBetter=0)
+
 # ------------------------------------------
 def main():
     """ основная функция main() """
@@ -278,7 +355,7 @@ def main():
     rows, wordsidList = mySeacher.getMatchRows('частичная мобилизация')
     print(rows)
     print(wordsidList)
-    diction = mySeacher.getSortedList('частичная мобилизация')
+    diction = mySeacher.pagerankScore(rows)
     print(diction)
 # ------------------------------------------
 main()
