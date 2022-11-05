@@ -229,6 +229,47 @@ class Searcher:
             if sum < mindistance[row[0]]: mindistance[row[0]] = sum  # переприсваиваем накопленную сумму
         return self.normalizeScores(mindistance, smallIsBetter=1) # возвращаем нормализованный словарь
 
+    def geturlname(self, id):
+        """
+        Получает из БД текстовое поле url-адреса по указанному urlid
+        :param id: целочисленный urlid
+        :return: строка с соответствующим url
+        """
+        # сформировать SQL-запрос вида SELECT url FROM urllist WHERE rowid=
+        sql = "SELECT url FROM URLlist WHERE rowid = {}; ".format(id)
+        # выполнить запрос в БД
+        url = self.con.execute(sql).fetchone()
+        # извлечь результат - строковый url и вернуть его
+        return url
+
+    def getSortedList(self, queryString):
+        """
+        На поисковый запрос формирует список URL, вычисляет ранги, выводит в отсортированном порядке
+        :param queryString:  поисковый запрос
+        :return:
+        """
+        # получить rowsLoc и wordids от getMatchRows(queryString)
+        rowsLoc, wordids = self.getMatchRows(queryString)
+        # rowsLoc - Список вхождений: urlId, loc_q1, loc_q2, .. слов из поискового запроса "q1 q2 ..."
+        # wordids - Список wordids.rowid слов поискового запроса
+
+        # Получить m1Scores - словарь {id URL страниц где встретились искомые слова: вычисленный нормализованный РАНГ}
+        # как результат вычисления одной из метрик
+        m1Scores = self.distanceScore(rowsLoc)
+
+        # Создать список для последующей сортировки рангов и url-адресов
+        rankedScoresList = list()
+        for url, score in m1Scores.items():
+            pair = (score, url)
+            rankedScoresList.append(pair)
+
+        # Сортировка из словаря по убыванию
+        rankedScoresList.sort(reverse=True)
+
+        # Вывод первых N Результатов
+        print("score, urlid, geturlname")
+        for (score, urlid) in rankedScoresList[0:10]:
+            print("{:.2f} {:>5}  {}".format(score, urlid, self.geturlname(urlid)))
 
 # ------------------------------------------
 def main():
@@ -237,7 +278,7 @@ def main():
     rows, wordsidList = mySeacher.getMatchRows('частичная мобилизация')
     print(rows)
     print(wordsidList)
-    diction = mySeacher.locationScore(rows)
+    diction = mySeacher.getSortedList('частичная мобилизация')
     print(diction)
 # ------------------------------------------
 main()
