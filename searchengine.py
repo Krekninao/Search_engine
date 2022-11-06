@@ -1,4 +1,5 @@
 import sqlite3
+import re
 
 
 class Searcher:
@@ -253,18 +254,30 @@ class Searcher:
         # rowsLoc - Список вхождений: urlId, loc_q1, loc_q2, .. слов из поискового запроса "q1 q2 ..."
         # wordids - Список wordids.rowid слов поискового запроса
 
-        # Получить m1Scores - словарь {id URL страниц где встретились искомые слова: вычисленный нормализованный РАНГ}
-        # как результат вычисления одной из метрик
-        m1Scores = self.distanceScore(rowsLoc)
+        # # Получить m1Scores - словарь {id URL страниц где встретились искомые слова: вычисленный нормализованный РАНГ}
+        # # как результат вычисления одной из метрик
+        # m1Scores = self.distanceScore(rowsLoc)
+        #
+        # # Создать список для последующей сортировки рангов и url-адресов
+        # rankedScoresList = list()
+        # for url, score in m1Scores.items():
+        #     pair = (score, url)
+        #     rankedScoresList.append(pair)
 
-        # Создать список для последующей сортировки рангов и url-адресов
-        rankedScoresList = list()
-        for url, score in m1Scores.items():
-            pair = (score, url)
-            rankedScoresList.append(pair)
+        totalscores = dict([(row[0], 0) for row in rowsLoc])
+        # функции ранжирования
+        weights = [(1.0, self.locationScore(rowsLoc)),
+                   (1.0, self.frequencyScore(rowsLoc)),
+                   (1.0, self.distanceScore(rowsLoc)),
+                   (1.0, self.pagerankScore(rowsLoc))]
+        for (weight, scores) in weights:
+            for url in totalscores:
+                totalscores[url] += weight * scores[url]
 
-        # Сортировка из словаря по убыванию
-        rankedScoresList.sort(reverse=True)
+        # # Сортировка из словаря по убыванию
+        # rankedScoresList.sort(reverse=True)
+
+        rankedScoresList = sorted([(score, url) for (url, score) in totalscores.items()], reverse=1)
 
         # Вывод первых N Результатов
         print("score, urlid, geturlname")
@@ -348,6 +361,35 @@ class Searcher:
             prDict[id] = score
         return self.normalizeScores(prDict, smallIsBetter=0)
 
+    def createMarkedHtmlFile(self, markedHTMLFilename, testText, testQueryList):
+
+        # Приобразование текста к нижнему регистру
+        testText = testText.lower()
+        for i in range(0, len(testQueryList)):
+            testQueryList[i] = testQueryList[i].lower()
+
+        # Получения текста страницы с знаками переноса строк и препинания. Прием с использованием регулярных выражений
+        wordList = re.compile("[\\w]+|[\\n.,!?:—]").findall(testText)
+
+        # Получить html-код с маркировкой искомых слов
+        htmlCode = getMarkedHTML(wordList, testQueryList)
+        print(htmlCode)
+
+        # сохранить html-код в файл с указанным именем
+        file = open(markedHTMLFilename, 'w', encoding="utf-8")
+        file.write(htmlCode)
+        file.close()
+
+    def getMarkedHTML(self, wordList, queryList):
+        """Генерировть html-код с макркировкой указанных слов цветом
+        wordList - список отдельных слов исходного текста
+        queryList - список отдельных искомых слов,
+        """
+
+        # ... подробнее в файле примере
+        return resultHTML
+
+
 # ------------------------------------------
 def main():
     """ основная функция main() """
@@ -355,7 +397,12 @@ def main():
     rows, wordsidList = mySeacher.getMatchRows('частичная мобилизация')
     print(rows)
     print(wordsidList)
-    diction = mySeacher.pagerankScore(rows)
-    print(diction)
+    diction = mySeacher.getSortedList('частичная мобилизация')
+    testText = """ Владимир Высоцкий — Песня о друге.
+        Если друг оказался вдруг..."""
+    testQueryList = ["если", "он"]  # в нижнем регистре
+    markedHTMLFilename = "getMarkedHTML.html"
+
+    mySeacher.createMarkedHtmlFile(markedHTMLFilename, testText, testQueryList)
 # ------------------------------------------
 main()
