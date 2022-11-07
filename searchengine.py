@@ -322,10 +322,14 @@ class Searcher:
         for i in range(iterations):
             print("Итерация %d" % (i))
 
-            # Цикл для обхода каждого  urlid адреса в urllist БД
             urllist = self.con.execute("SELECT rowid FROM urllist")
+            # Сохраняем значения pagerank на момент начала итерации
+            cur_pr = {}
+            tmp = self.con.execute("SELECT urlid, score FROM pagerank")
+            for (urlid, score) in tmp:
+                cur_pr[urlid] = score
+            # Цикл для обхода каждого  urlid адреса в urllist БД
             for (urlid, ) in urllist:
-
                 # назначить коэфф pr = 0.15
                 pr = 0.15
                 # SELECT DISTINCT fromid FROM linkbeetwenurl  -- DISTINCT выбрать уникальные значения fromid
@@ -338,8 +342,9 @@ class Searcher:
                     print(linker)
                     # Находим ранг ссылающейся страницы linkingpr. выполнить SQL-зарпрос
                     curURLid = self.con.execute(f'SELECT rowid from URLlist where URL = "{linker}"').fetchone()[0]
-                    linkingpr = self.con.execute(
-                        'select score from pagerank where urlid=%d' % curURLid).fetchone()[0]
+                    # linkingpr = self.con.execute(
+                    #     'select score from pagerank where urlid=%d' % curURLid).fetchone()[0]
+                    linkingpr = cur_pr[urlid]
                     # Находим общее число ссылок на ссылающейся странице linkingcount. выполнить SQL-зарпрос
                     linkingcount = self.con.execute(
                         'select count(*) from linkbeetwenURL where fk_fromURL_id="%s"' % linker).fetchone()[0]
