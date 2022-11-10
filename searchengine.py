@@ -377,7 +377,7 @@ class Searcher:
         wordList = re.compile("[\\w]+|[\\n.,!?:—]").findall(testText)
 
         # Получить html-код с маркировкой искомых слов
-        htmlCode = getMarkedHTML(wordList, testQueryList)
+        htmlCode = self.getMarkedHTML(wordList, testQueryList)
         print(htmlCode)
 
         # сохранить html-код в файл с указанным именем
@@ -390,7 +390,16 @@ class Searcher:
         wordList - список отдельных слов исходного текста
         queryList - список отдельных искомых слов,
         """
-
+        resultHTML = '<!DOCTYPE html>\n\
+                        <html>\n\
+                         <head>\n\
+                          <meta charset="utf-8" />\n\
+                          <title>HTML5</title>\n\
+                         </head>\n\
+                         <body>\n'
+        resultHTML += 'SMTH!!!!!!\n'
+        resultHTML += ' </body>\n\
+                </html>'
         # ... подробнее в файле примере
         return resultHTML
 
@@ -399,7 +408,8 @@ class Searcher:
 def main():
     """ основная функция main() """
     mySeacher = Searcher("DB_Lab1.db")
-    rows, wordsidList = mySeacher.getMatchRows('частичная мобилизация')
+    query = 'частичная мобилизация'
+    rows, wordsidList = mySeacher.getMatchRows(query)
     print(rows)
     print(wordsidList)
     diction = mySeacher.getSortedList('частичная мобилизация')
