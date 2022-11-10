@@ -1,6 +1,8 @@
 import sqlite3
 import re
 
+import bs4
+import requests
 
 class Searcher:
 
@@ -50,7 +52,7 @@ class Searcher:
 
                 # поместить rowid в список результата
                 rowidList.append(word_rowid)
-                print("  ", word, word_rowid)
+#                print("  ", word, word_rowid)
             else:
                 # в случае, если слово не найдено приостановить работу (генерация исключения)
                 raise Exception("Одно из слов поискового запроса не найдено:" + word)
@@ -142,7 +144,7 @@ class Searcher:
             sqlFullQuery += sqlpart
 
         # Выполнить SQL-запроса и извлеч ответ от БД
-        print(sqlFullQuery)
+#        print(sqlFullQuery)
         cur = self.con.execute(sqlFullQuery)
         rows = [row for row in cur]
 
@@ -270,19 +272,36 @@ class Searcher:
                    (1.0, self.frequencyScore(rowsLoc)),
                    (1.0, self.distanceScore(rowsLoc)),
                    (1.0, self.pagerankScore(rowsLoc))]
+        #1 способ - среднее
+        # for (weight, scores) in weights:
+        #     for url in totalscores:
+        #         totalscores[url] += weight * scores[url]
+        #
+        # for url in totalscores:
+        #     totalscores[url] /= len(weights)
+
+        #2 способ - параллельное соединение
+        numerators, denominators = {}, {}
+        for url in totalscores:
+            numerators[url] = 1
+            denominators[url] = 0
+
         for (weight, scores) in weights:
             for url in totalscores:
-                totalscores[url] += weight * scores[url]
+                    numerators[url] *= weight * scores[url]
+                    denominators[url] += weight * scores[url]
 
+        for url in totalscores:
+            totalscores[url] = numerators[url] / denominators[url]
         # # Сортировка из словаря по убыванию
         # rankedScoresList.sort(reverse=True)
 
         rankedScoresList = sorted([(score, url) for (url, score) in totalscores.items()], reverse=1)
 
         # Вывод первых N Результатов
-        print("score, urlid, geturlname")
+        print("score urlid geturlname")
         for (score, urlid) in rankedScoresList[0:10]:
-            print("{:.2f} {:>5}  {}".format(score, urlid, self.geturlname(urlid)))
+            print("{:.2f} {:>5}  {}".format(score, urlid, self.geturlname(urlid)[0]))
 
     def calculatePageRank(self, iterations=5):
         # Подготовка БД ------------------------------------------
@@ -320,7 +339,7 @@ class Searcher:
 
         # Цикл Вычисление PageRank в несколько итераций
         for i in range(iterations):
-            print("Итерация %d" % (i))
+#            print("Итерация %d" % (i))
 
             urllist = self.con.execute("SELECT rowid FROM urllist")
             # Сохраняем значения pagerank на момент начала итерации
@@ -334,12 +353,12 @@ class Searcher:
                 pr = 0.15
                 # SELECT DISTINCT fromid FROM linkbeetwenurl  -- DISTINCT выбрать уникальные значения fromid
                 url = self.con.execute(f"SELECT URL from URLlist where rowid = {urlid}").fetchone()
-                print(f'----------current url = {urlid}----------')
+#                print(f'----------current url = {urlid}----------')
                 sqlRequest = f'SELECT DISTINCT fk_fromURL_id FROM linkbeetwenURL where fk_ToURL_id = "{url[0]}"'
                 listLinkedURL = self.con.execute(sqlRequest)
                 # В цикле обходим все страницы, ссылающиеся на данную urlid
                 for (linker, ) in listLinkedURL:
-                    print(linker)
+#                    print(linker)
                     # Находим ранг ссылающейся страницы linkingpr. выполнить SQL-зарпрос
                     curURLid = self.con.execute(f'SELECT rowid from URLlist where URL = "{linker}"').fetchone()[0]
                     # linkingpr = self.con.execute(
@@ -366,6 +385,21 @@ class Searcher:
             prDict[id] = score
         return self.normalizeScores(prDict, smallIsBetter=0)
 
+    def generateHTML(self, rows, query):
+        queryList = query.split()
+        listURL = []
+        for row in rows:
+            listURL.append(row[0])
+        listURL = set(listURL)
+        for idURL in listURL:
+            url = self.con.execute(f"SELECT URL from URLList where rowid = {idURL}").fetchone()[0]
+            html_doc = requests.get(url).text  # получить HTML код страницы
+            soup = bs4.BeautifulSoup(html_doc, "html.parser")
+            text = soup.text.lower()
+            name = "marked" + str(idURL) + ".html"
+            self.createMarkedHtmlFile(name, text, queryList)
+
+
     def createMarkedHtmlFile(self, markedHTMLFilename, testText, testQueryList):
 
         # Приобразование текста к нижнему регистру
@@ -378,7 +412,7 @@ class Searcher:
 
         # Получить html-код с маркировкой искомых слов
         htmlCode = self.getMarkedHTML(wordList, testQueryList)
-        print(htmlCode)
+#        print(htmlCode)
 
         # сохранить html-код в файл с указанным именем
         file = open(markedHTMLFilename, 'w', encoding="utf-8")
@@ -397,7 +431,12 @@ class Searcher:
                           <title>HTML5</title>\n\
                          </head>\n\
                          <body>\n'
-        resultHTML += 'SMTH!!!!!!\n'
+#        resultHTML += 'SMTH!!!!!!\n'
+        for word in wordList:
+            if word in queryList:
+                resultHTML += '<span style="background-color:red">' + word + '</span>'
+            else:
+                resultHTML += word
         resultHTML += ' </body>\n\
                 </html>'
         # ... подробнее в файле примере
@@ -411,13 +450,14 @@ def main():
     query = 'частичная мобилизация'
     rows, wordsidList = mySeacher.getMatchRows(query)
     print(rows)
-    print(wordsidList)
+#    print(wordsidList)
+    mySeacher.generateHTML(rows, query)
     diction = mySeacher.getSortedList('частичная мобилизация')
-    testText = """ Владимир Высоцкий — Песня о друге.
-        Если друг оказался вдруг..."""
-    testQueryList = ["если", "он"]  # в нижнем регистре
-    markedHTMLFilename = "getMarkedHTML.html"
-
-    mySeacher.createMarkedHtmlFile(markedHTMLFilename, testText, testQueryList)
+    # testText = """ Владимир Высоцкий — Песня о друге.
+    #     Если друг оказался вдруг..."""
+    # testQueryList = ["если", "он"]  # в нижнем регистре
+    # markedHTMLFilename = "getMarkedHTML.html"
+    #
+    # mySeacher.createMarkedHtmlFile(markedHTMLFilename, testText, testQueryList)
 # ------------------------------------------
 main()
