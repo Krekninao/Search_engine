@@ -299,9 +299,11 @@ class Searcher:
         rankedScoresList = sorted([(score, url) for (url, score) in totalscores.items()], reverse=1)
 
         # Вывод первых N Результатов
-        print("score urlid geturlname")
+        print("score loc freq dist pr urlid geturlname ")
         for (score, urlid) in rankedScoresList[0:10]:
-            print("{:.2f} {:>5}  {}".format(score, urlid, self.geturlname(urlid)[0]))
+            print("{:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:>5}  {}".format(score, weights[0][1][urlid], weights[1][1][
+                urlid], weights[2][1][urlid], weights[3][1][urlid], urlid, self.geturlname(
+                urlid)[0] ))
 
     def calculatePageRank(self, iterations=5):
         # Подготовка БД ------------------------------------------
@@ -392,10 +394,15 @@ class Searcher:
             listURL.append(row[0])
         listURL = set(listURL)
         for idURL in listURL:
-            url = self.con.execute(f"SELECT URL from URLList where rowid = {idURL}").fetchone()[0]
-            html_doc = requests.get(url).text  # получить HTML код страницы
-            soup = bs4.BeautifulSoup(html_doc, "html.parser")
-            text = soup.text.lower()
+            # url = self.con.execute(f"SELECT URL from URLList where rowid = {idURL}").fetchone()[0]
+            # html_doc = requests.get(url).text  # получить HTML код страницы
+            # soup = bs4.BeautifulSoup(html_doc, "html.parser")
+            # text = soup.text.lower()
+            res_text = self.con.execute(f"select word from wordlist left join wordlocation on wordlist.rowid = "
+                                    f"wordlocation.fk_wordid where fk_URLid = {idURL}")
+            text = ''
+            for (word, ) in res_text:
+                text += word + " "
             name = "marked" + str(idURL) + ".html"
             self.createMarkedHtmlFile(name, text, queryList)
 
@@ -424,6 +431,7 @@ class Searcher:
         wordList - список отдельных слов исходного текста
         queryList - список отдельных искомых слов,
         """
+        colorList = ['red', 'yellow', 'green', 'cyan', 'brown']
         resultHTML = '<!DOCTYPE html>\n\
                         <html>\n\
                          <head>\n\
@@ -434,12 +442,12 @@ class Searcher:
 #        resultHTML += 'SMTH!!!!!!\n'
         for word in wordList:
             if word in queryList:
-                resultHTML += '<span style="background-color:red">' + word + '</span>'
+                color = colorList[queryList.index(word)]
+                resultHTML += f'<span style="background-color:{color}">' + word + '</span> '
             else:
-                resultHTML += word
+                resultHTML += word + " "
         resultHTML += ' </body>\n\
                 </html>'
-        # ... подробнее в файле примере
         return resultHTML
 
 
